@@ -50,6 +50,7 @@ export default function TokenSwap() {
   } | null>(null); // Информация о токене (добавляем decimals)
   const [selectedProtocol, setSelectedProtocol] = useState("Uniswap V2"); // Протокол для обмена
   const [sliderValue, setSliderValue] = useState(2); // Проскальзывание
+  const [decimals, setDecimals] = useState<number>(18); // Значение decimals выбранного токена
 
   // Подписка на изменение сети
   useEffect(() => {
@@ -105,12 +106,14 @@ export default function TokenSwap() {
       const response = await fetch(`${apiUrl}${address}`);
       if (!response.ok) throw new Error("Ошибка загрузки данных о токене");
       const data = await response.json();
-      const decimals = await getTokenDecimals(address);
+      const decimals = await getTokenDecimals(address); // Обновляем decimals
+      console.log(`Полученные decimals для токена ${address}:`, decimals); // Логирование decimals
       setTokenInfo({
         name: data.name,
         logo: data.image.large,
         decimals, // Сохраняем количество десятичных знаков
       });
+      setDecimals(decimals); // Сохраняем в состоянии
     } catch (error) {
       console.error("Ошибка получения информации о токене:", error);
       setTokenInfo(null);
@@ -160,7 +163,7 @@ export default function TokenSwap() {
 
       if (tokenInfo) {
         // Преобразование значения в корректный формат с учётом decimals
-        const formattedAmount = formatUnits(amountsOut[1], tokenInfo.decimals);
+        const formattedAmount = formatUnits(amountsOut[1], decimals);
         setEstimatedTokens(formattedAmount);
       }
     } catch (error) {
@@ -201,7 +204,10 @@ export default function TokenSwap() {
       const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
 
       const tx = await router.swapExactETHForTokens(
-        0,
+        Math.round(
+          ((Number(estimatedTokens) * Number(100 - sliderValue)) / 100) *
+            Math.pow(10, Number(decimals))
+        ),
         path,
         await signer.getAddress(),
         deadline,
@@ -230,20 +236,13 @@ export default function TokenSwap() {
         fetchTokenInfo(tokenAddress);
         getEstimatedTokens();
       }
-    }, 15000); // обновление каждую секунду
+    }, 35000);
 
     // Очищаем интервал при размонтировании компонента
     return () => {
       clearInterval(interval);
     };
-  }, [
-    tokenAddress,
-    amount,
-    network,
-    selectedProtocol,
-    fetchTokenInfo,
-    getEstimatedTokens,
-  ]);
+  }, [tokenAddress, amount, network, selectedProtocol, fetchTokenInfo]);
 
   return (
     <div className="p-6 bg-neutral-100 rounded-xl shadow-md flex flex-col gap-6 max-w-xl mx-auto">
@@ -291,13 +290,15 @@ export default function TokenSwap() {
         <label className="block">
           <input
             type="range"
-            min="0"
+            min="0.5"
             max="15"
             value={sliderValue}
             onChange={(e) => setSliderValue(Number(e.target.value))}
             className="w-full mt-2"
           />
-          <div className="text-center">Проскальзывание {sliderValue}%</div>
+          <div className="text-center">
+            Проскальзывание {sliderValue}% {}
+          </div>
         </label>
       </div>
 
