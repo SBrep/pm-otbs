@@ -46,8 +46,10 @@ export default function TokenSwap() {
   const [tokenInfo, setTokenInfo] = useState<{
     name: string;
     logo: string;
-  } | null>(null); // Информация о токене
+    decimals: number;
+  } | null>(null); // Информация о токене (добавляем decimals)
   const [selectedProtocol, setSelectedProtocol] = useState("Uniswap V2"); // Протокол для обмена
+  const [sliderValue, setSliderValue] = useState(2); // Проскальзывание
 
   // Подписка на изменение сети
   useEffect(() => {
@@ -91,6 +93,7 @@ export default function TokenSwap() {
   }, [network]);
 
   // Функция для получения информации о токене
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchTokenInfo = async (address: string) => {
     const apiUrl = COINGECKO_API[network.name];
     if (!apiUrl) {
@@ -102,9 +105,11 @@ export default function TokenSwap() {
       const response = await fetch(`${apiUrl}${address}`);
       if (!response.ok) throw new Error("Ошибка загрузки данных о токене");
       const data = await response.json();
+      const decimals = await getTokenDecimals(address);
       setTokenInfo({
         name: data.name,
         logo: data.image.large,
+        decimals, // Сохраняем количество десятичных знаков
       });
     } catch (error) {
       console.error("Ошибка получения информации о токене:", error);
@@ -112,7 +117,25 @@ export default function TokenSwap() {
     }
   };
 
+  // Получение количества десятичных знаков токена
+  const getTokenDecimals = async (address: string) => {
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const tokenContract = new Contract(
+        address,
+        ["function decimals() view returns (uint8)"],
+        provider
+      );
+      const decimals = await tokenContract.decimals();
+      return decimals;
+    } catch (error) {
+      console.error("Ошибка получения decimals для токена:", error);
+      return 18; // По умолчанию возвращает 18
+    }
+  };
+
   // Функция для получения оценки токенов
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getEstimatedTokens = async () => {
     if (!window.ethereum || !tokenAddress) return;
     try {
@@ -134,7 +157,12 @@ export default function TokenSwap() {
         parseUnits(amount, 18),
         path
       );
-      setEstimatedTokens(formatUnits(amountsOut[1], 18));
+
+      if (tokenInfo) {
+        // Преобразование значения в корректный формат с учётом decimals
+        const formattedAmount = formatUnits(amountsOut[1], tokenInfo.decimals);
+        setEstimatedTokens(formattedAmount);
+      }
     } catch (error) {
       console.error("Ошибка расчета цены:", error);
       setEstimatedTokens("Ошибка");
@@ -196,7 +224,26 @@ export default function TokenSwap() {
       fetchTokenInfo(tokenAddress);
       getEstimatedTokens();
     }
-  }, [tokenAddress, amount, network, selectedProtocol]);
+
+    const interval = setInterval(() => {
+      if (tokenAddress) {
+        fetchTokenInfo(tokenAddress);
+        getEstimatedTokens();
+      }
+    }, 15000); // обновление каждую секунду
+
+    // Очищаем интервал при размонтировании компонента
+    return () => {
+      clearInterval(interval);
+    };
+  }, [
+    tokenAddress,
+    amount,
+    network,
+    selectedProtocol,
+    fetchTokenInfo,
+    getEstimatedTokens,
+  ]);
 
   return (
     <div className="p-6 bg-neutral-100 rounded-xl shadow-md flex flex-col gap-6 max-w-xl mx-auto">
@@ -239,6 +286,18 @@ export default function TokenSwap() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="block">
+          <input
+            type="range"
+            min="0"
+            max="15"
+            value={sliderValue}
+            onChange={(e) => setSliderValue(Number(e.target.value))}
+            className="w-full mt-2"
+          />
+          <div className="text-center">Проскальзывание {sliderValue}%</div>
         </label>
       </div>
 
