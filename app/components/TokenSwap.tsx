@@ -4,11 +4,21 @@ import { BrowserProvider, Contract, parseUnits, formatUnits } from "ethers";
 import { useWallet } from "../context/WalletContext"; // Контекст кошелька
 import UNISWAP_ROUTER_ABI from "../abi/uniswap_router.json";
 
-// Адреса DEX для разных сетей
-const DEX_ADDRESSES: Record<string, string> = {
-  "Ethereum Mainnet": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", // Uniswap V2 на Ethereum
-  "Binance Smart Chain": "0x10ED43C718714eb63d5aA57B78B54704E256024E", // PancakeSwap на Binance Smart Chain
-  Polygon: "0xa5E0829Ca887180C81B2CFeA44515a81C965dE98", // Quickswap на Polygon
+// Адреса DEX для разных сетей и протоколов
+const DEX_ADDRESSES: Record<string, Record<string, string>> = {
+  "Ethereum Mainnet": {
+    "Uniswap V2": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", // Uniswap V2 на Ethereum
+    "PancakeSwap V2": "0xEfF92A263d31888d860bD50809A8D171709b7b1c",
+    // Можно добавить другие протоколы для Ethereum
+  },
+  "Binance Smart Chain": {
+    "PancakeSwap V2": "0x10ED43C718714eb63d5aA57B78B54704E256024E", // PancakeSwap на Binance Smart Chain
+    // Можно добавить другие протоколы для BSC
+  },
+  Polygon: {
+    Quickswap: "0xa5E0829Ca887180C81B2CFeA44515a81C965dE98", // Quickswap на Polygon
+    // Можно добавить другие протоколы для Polygon
+  },
 };
 
 // API URL для разных сетей
@@ -37,6 +47,7 @@ export default function TokenSwap() {
     name: string;
     logo: string;
   } | null>(null); // Информация о токене
+  const [selectedProtocol, setSelectedProtocol] = useState("Uniswap V2"); // Протокол для обмена
 
   // Подписка на изменение сети
   useEffect(() => {
@@ -70,6 +81,15 @@ export default function TokenSwap() {
     }
   };
 
+  // Обновление выбранного протокола при смене сети
+  useEffect(() => {
+    if (!network.name || !DEX_ADDRESSES[network.name]) return;
+
+    // Устанавливаем первый доступный протокол по умолчанию
+    const availableProtocols = Object.keys(DEX_ADDRESSES[network.name]);
+    setSelectedProtocol(availableProtocols[0]);
+  }, [network]);
+
   // Функция для получения информации о токене
   const fetchTokenInfo = async (address: string) => {
     const apiUrl = COINGECKO_API[network.name];
@@ -97,9 +117,13 @@ export default function TokenSwap() {
     if (!window.ethereum || !tokenAddress) return;
     try {
       const provider = new BrowserProvider(window.ethereum);
-      const routerAddress = DEX_ADDRESSES[network.name];
+      const routerAddress = DEX_ADDRESSES[network.name][selectedProtocol];
       if (!routerAddress) {
-        console.error("Не найден адрес контракта для сети", network.name);
+        console.error(
+          "Не найден адрес контракта для сети и протокола",
+          network.name,
+          selectedProtocol
+        );
         return;
       }
 
@@ -136,7 +160,7 @@ export default function TokenSwap() {
     try {
       const provider = new BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const routerAddress = DEX_ADDRESSES[network.name];
+      const routerAddress = DEX_ADDRESSES[network.name][selectedProtocol];
       if (!routerAddress) {
         alert("Не найден адрес контракта для сети " + network.name);
         setLoading(false);
@@ -172,7 +196,7 @@ export default function TokenSwap() {
       fetchTokenInfo(tokenAddress);
       getEstimatedTokens();
     }
-  }, [tokenAddress, amount, network]);
+  }, [tokenAddress, amount, network, selectedProtocol]);
 
   return (
     <div className="p-6 bg-neutral-100 rounded-xl shadow-md flex flex-col gap-6 max-w-xl mx-auto">
@@ -200,6 +224,21 @@ export default function TokenSwap() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+        </label>
+
+        <label className="block">
+          Выберите протокол:
+          <select
+            className="mt-2 p-3 border rounded-xl w-full"
+            value={selectedProtocol}
+            onChange={(e) => setSelectedProtocol(e.target.value)}
+          >
+            {Object.keys(DEX_ADDRESSES[network.name] || {}).map((protocol) => (
+              <option key={protocol} value={protocol}>
+                {protocol}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
