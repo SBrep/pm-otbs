@@ -2,12 +2,19 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { BrowserProvider, formatUnits } from "ethers";
 
-// Список поддерживаемых сетей
-const supportedChains: Record<string, string> = {
-  "0x1": "Ethereum Mainnet",
-  "0x89": "Polygon",
-  "0x38": "Binance Smart Chain",
-  "0x5": "Goerli Testnet",
+const SUPPORTED_NETWORKS: Record<
+  string,
+  { name: string; currency: string; dex: string }
+> = {
+  "0x1": { name: "Ethereum Mainnet", currency: "ETH", dex: "UniswapV2" },
+  "0x89": { name: "Polygon", currency: "MATIC", dex: "Quickswap" },
+  "0x38": {
+    name: "Binance Smart Chain",
+    currency: "BNB",
+    dex: "PancakeSwapV2",
+  },
+  "0xa": { name: "Optimism", currency: "ETH", dex: "UniswapV2" },
+  "0xa4b1": { name: "Arbitrum", currency: "ETH", dex: "UniswapV2" },
 };
 
 const WalletContext = createContext<any>(null);
@@ -15,11 +22,10 @@ const WalletContext = createContext<any>(null);
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const [account, setAccount] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
-  const [chainId, setChainId] = useState<string | null>(null);
-  const [networkName, setNetworkName] = useState<string | null>(null);
+  const [chainId, setChainId] = useState<string>("0x1"); // По умолчанию Ethereum
+  const [network, setNetwork] = useState(SUPPORTED_NETWORKS["0x1"]);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Функция подключения кошелька
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert("MetaMask не установлен!");
@@ -32,23 +38,25 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       setAccount(accounts[0]);
       setIsConnected(true);
 
-      // Получаем текущую сеть
-      const network = await provider.getNetwork();
-      updateNetwork(network.chainId.toString(16)); // Преобразуем в строку hex
-
+      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      updateNetwork(chainId);
       fetchBalance(accounts[0]);
     } catch (error) {
       console.error("Ошибка подключения:", error);
     }
   };
 
-  // Функция обновления сети
-  const updateNetwork = (chainHex: string) => {
-    setChainId(chainHex);
-    setNetworkName(supportedChains[chainHex] || "Сеть не поддерживается");
+  const updateNetwork = (chainId: string) => {
+    setChainId(chainId);
+    setNetwork(
+      SUPPORTED_NETWORKS[chainId] || {
+        name: "Unknown",
+        currency: "Unknown",
+        dex: "Unknown",
+      }
+    );
   };
 
-  // Функция получения баланса
   const fetchBalance = async (walletAddress: string) => {
     try {
       const provider = new BrowserProvider(window.ethereum);
@@ -60,13 +68,11 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Следим за изменением сети в MetaMask
   useEffect(() => {
     if (window.ethereum) {
-      window.ethereum.on("chainChanged", (chainId: string) => {
-        updateNetwork(chainId);
-      });
-
+      window.ethereum.on("chainChanged", (chainId: string) =>
+        updateNetwork(chainId)
+      );
       window.ethereum.on("accountsChanged", (accounts: string[]) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
@@ -82,7 +88,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <WalletContext.Provider
-      value={{ account, balance, isConnected, connectWallet, networkName }}
+      value={{ account, balance, isConnected, connectWallet, network }}
     >
       {children}
     </WalletContext.Provider>

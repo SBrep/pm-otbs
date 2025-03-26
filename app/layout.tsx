@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { WalletProvider } from "./components/WalletContext";
+import { WalletProvider } from "./context/WalletContext";
 
 export const metadata: Metadata = {
   title: "Create Next App",
