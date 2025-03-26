@@ -103,7 +103,11 @@ export default function TokenSwap() {
     }
 
     try {
-      const response = await fetch(`${apiUrl}${address}`);
+      const response = await fetch(`${apiUrl}${address}`, {
+        headers: {
+          "x-cg-demo-api-key": process.env.NEXT_PUBLIC_COINGECKO_API_KEY,
+        },
+      });
       if (!response.ok) throw new Error("Ошибка загрузки данных о токене");
       const data = await response.json();
       const decimals = await getTokenDecimals(address); // Обновляем decimals
@@ -297,7 +301,11 @@ export default function TokenSwap() {
             className="w-full mt-2"
           />
           <div className="text-center">
-            Проскальзывание {sliderValue}% {}
+            Проскальзывание {sliderValue}%{" "}
+            {Math.round(
+              ((Number(estimatedTokens) * Number(100 - sliderValue)) / 100) *
+                Math.pow(10, Number(decimals))
+            )}
           </div>
         </label>
       </div>
