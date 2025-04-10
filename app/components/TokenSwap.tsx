@@ -94,8 +94,26 @@ export default function TokenSwap() {
   }, [network]);
 
   // Функция для получения информации о токене
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchTokenInfo = async (address: string) => {
+    const provider = new BrowserProvider(window.ethereum);
+
+    // Создаем интерфейс для взаимодействия с ERC20 токеном
+    const tokenContract = new Contract(
+      address,
+      [
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function decimals() view returns (uint8)",
+      ],
+      provider
+    );
+
+    // Получаем необходимую информацию о токене
+    const [name, decimals] = await Promise.all([
+      tokenContract.name(),
+      tokenContract.decimals(),
+    ]);
+
     const apiUrl = COINGECKO_API[network.name];
     if (!apiUrl) {
       console.error(`Нет API для сети ${network.name}`);
@@ -110,10 +128,9 @@ export default function TokenSwap() {
       });
       if (!response.ok) throw new Error("Ошибка загрузки данных о токене");
       const data = await response.json();
-      const decimals = await getTokenDecimals(address); // Обновляем decimals
       console.log(`Полученные decimals для токена ${address}:`, decimals); // Логирование decimals
       setTokenInfo({
-        name: data.name,
+        name,
         logo: data.image.large,
         decimals, // Сохраняем количество десятичных знаков
       });
@@ -121,23 +138,6 @@ export default function TokenSwap() {
     } catch (error) {
       console.error("Ошибка получения информации о токене:", error);
       setTokenInfo(null);
-    }
-  };
-
-  // Получение количества десятичных знаков токена
-  const getTokenDecimals = async (address: string) => {
-    try {
-      const provider = new BrowserProvider(window.ethereum);
-      const tokenContract = new Contract(
-        address,
-        ["function decimals() view returns (uint8)"],
-        provider
-      );
-      const decimals = await tokenContract.decimals();
-      return decimals;
-    } catch (error) {
-      console.error("Ошибка получения decimals для токена:", error);
-      return 18; // По умолчанию возвращает 18
     }
   };
 
@@ -294,18 +294,21 @@ export default function TokenSwap() {
         <label className="block">
           <input
             type="range"
-            min="0.5"
-            max="15"
+            min="0"
+            max="30"
             value={sliderValue}
             onChange={(e) => setSliderValue(Number(e.target.value))}
             className="w-full mt-2"
           />
           <div className="text-center">
             Проскальзывание {sliderValue}%{" "}
-            {Math.round(
-              ((Number(estimatedTokens) * Number(100 - sliderValue)) / 100) *
-                Math.pow(10, Number(decimals))
-            )}
+            <p>Минимальная количество токена с учетом проскальзывания: </p>
+            <p>
+              {Math.round(
+                ((Number(estimatedTokens) * Number(100 - sliderValue)) / 100) *
+                  Math.pow(10, Number(decimals))
+              ) / Math.pow(10, Number(decimals))}
+            </p>
           </div>
         </label>
       </div>
