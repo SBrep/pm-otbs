@@ -128,7 +128,6 @@ export default function TokenSwap() {
       });
       if (!response.ok) throw new Error("Ошибка загрузки данных о токене");
       const data = await response.json();
-      console.log(`Полученные decimals для токена ${address}:`, decimals); // Логирование decimals
       setTokenInfo({
         name,
         logo: data.image.large,
